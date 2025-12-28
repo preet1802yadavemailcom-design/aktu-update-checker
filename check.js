@@ -1,4 +1,5 @@
-import fetch from "node-fetch";
+const fetch = (...args) =>
+  import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const AKTU_URL = "https://aktu.ac.in/circulars.html";
 
@@ -23,11 +24,13 @@ async function run() {
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
         headings: { en: "🚨 AKTU New Update" },
-        contents: { en: "AKTU website par naya circular/update aaya hai. Tap to check." },
+        contents: { en: "AKTU website par naya circular/update aaya hai." },
         url: "https://preetbeacon.com"
       })
     });
-    console.log("🔔 Notification sent");
+    console.log("Notification sent");
+  } else {
+    console.log("No change detected");
   }
 
   lastSize = size;
