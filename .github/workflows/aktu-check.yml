@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # allow committing lastSize.txt back to the repo
+  contents: write
 
 jobs:
   check:
@@ -14,18 +14,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          persist-credentials: true
 
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
           node-version: 18
 
+      - name: Install Dependencies
+        run: npm install axios  # Agar aap axios use kar rahe hain
+
       - name: Run AKTU check
         env:
           ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
           ONESIGNAL_API_KEY: ${{ secrets.ONESIGNAL_API_KEY }}
+        run: node check.js
+
+      - name: Save Changes (100% Necessary)
         run: |
-          node check.js
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add last_circular.txt || echo "No changes"
+          git commit -m "Update last circular data [skip ci]" || echo "No changes to commit"
+          git push
