@@ -2,11 +2,31 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// अगर Node < 18 है तो नीचे वाली लाइन अनकॉमेंट करें:
+// const fetch = require('node-fetch');
+
 const AKTU_URL = "https://aktu.ac.in/circulars.html";
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 const STATE_FILE = path.join(__dirname, 'lastSize.txt');
 
+// fetch के लिए retry logic
+async function fetchWithRetry(url, options = {}, retries = 3, delay = 2000) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+      return res;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      console.warn(`Fetch attempt ${attempt} failed, retrying in ${delay}ms...`);
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+  throw new Error("All fetch retries failed");
+}
+
+// lastSize.txt पढ़ना
 function readLastSize() {
   try {
     if (fs.existsSync(STATE_FILE)) {
@@ -20,6 +40,7 @@ function readLastSize() {
   return 0;
 }
 
+// lastSize.txt लिखना
 function writeLastSize(size) {
   try {
     fs.writeFileSync(STATE_FILE, String(size), 'utf8');
@@ -28,6 +49,7 @@ function writeLastSize(size) {
   }
 }
 
+// git से state फाइल कमिट करना
 function tryCommitState() {
   try {
     execSync('git config user.name "github-actions[bot]"');
@@ -46,6 +68,7 @@ function tryCommitState() {
   }
 }
 
+// OneSignal पर notification भेजना
 async function sendNotification() {
   if (!ONESIGNAL_APP_ID || !ONESIGNAL_API_KEY) {
     console.error('ONESIGNAL_APP_ID or ONESIGNAL_API_KEY not set; skipping notification.');
@@ -53,7 +76,7 @@ async function sendNotification() {
   }
 
   try {
-    const res = await fetch('https://onesignal.com/api/v1/notifications', {
+    const res = await fetchWithRetry('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -78,13 +101,13 @@ async function sendNotification() {
   }
 }
 
+// पूरे प्रोसेस को चलाने वाला main function
 async function run() {
   try {
     console.log('Starting AKTU check...');
     const lastSize = readLastSize();
 
-    const res = await fetch(AKTU_URL);
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+    const res = await fetchWithRetry(AKTU_URL, {}, 3, 4000); // 3 ट्राय, 4 सेकंड वेट
     const html = await res.text();
     const size = html.length;
 
